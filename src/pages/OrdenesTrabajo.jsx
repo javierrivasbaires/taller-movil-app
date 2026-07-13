@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import Select from 'react-select';
+import { useGeolocation } from '../hooks/useGeolocation';
+import { generarEnlacesMapa } from '../utils/ubicacion';
 
 // --- FUNCIONES DE CONSULTA ---
 const fetchOrdenes = async () => {
@@ -9,7 +11,7 @@ const fetchOrdenes = async () => {
     .from('ordenes_trabajo')
     .select(`
       *,
-      clientes (nombre, telefono),
+      clientes (nombre, telefono, latitud, longitud),
       vehiculos (marca, modelo, placa),
       mecanico:perfiles!ordenes_trabajo_mecanico_id_fkey (nombre),
       orden_servicios (servicio_id, precio_aplicado, servicios (nombre, precio_base)),
@@ -23,7 +25,7 @@ const fetchOrdenes = async () => {
 const fetchClientes = async () => {
   const { data, error } = await supabase
     .from('clientes')
-    .select('id, nombre')
+    .select('id, nombre, latitud, longitud, direccion')
     .order('nombre');
   if (error) throw new Error(error.message);
   return data;
@@ -171,11 +173,16 @@ const OrdenesTrabajo = () => {
   const [kilometraje, setKilometraje] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [templateId, setTemplateId] = useState('');
+  
+  // Ubicación
+  const [latitud, setLatitud] = useState('');
+  const [longitud, setLongitud] = useState('');
+  const [direccionServicio, setDireccionServicio] = useState('');
 
   const [serviciosSeleccionados, setServiciosSeleccionados] = useState([]);
   const [productosSeleccionados, setProductosSeleccionados] = useState([]);
 
-  // Consultas
+  // --- Consultas ---
   const { data: ordenes, isLoading: ordenesLoading, error: ordenesError } = useQuery({
     queryKey: ['ordenes'],
     queryFn: fetchOrdenes,
@@ -212,7 +219,7 @@ const OrdenesTrabajo = () => {
     queryFn: fetchTemplates,
   });
 
-  // Mutaciones
+  // --- Mutaciones ---
   const crearMutation = useMutation({
     mutationFn: crearOrden,
     onSuccess: () => {
@@ -244,6 +251,7 @@ const OrdenesTrabajo = () => {
     onError: (error) => alert('Error: ' + error.message),
   });
 
+  // --- Utilidades ---
   const resetFormulario = () => {
     setClienteId('');
     setVehiculoId('');
@@ -254,6 +262,9 @@ const OrdenesTrabajo = () => {
     setKilometraje('');
     setObservaciones('');
     setTemplateId('');
+    setLatitud('');
+    setLongitud('');
+    setDireccionServicio('');
     setServiciosSeleccionados([]);
     setProductosSeleccionados([]);
     setEditandoId(null);
@@ -265,6 +276,26 @@ const OrdenesTrabajo = () => {
     serviciosSeleccionados.forEach(s => total += parseFloat(s.precio || 0));
     productosSeleccionados.forEach(p => total += parseFloat(p.precio || 0) * (p.cantidad || 1));
     return total.toFixed(2);
+  };
+
+  const cargarUbicacionCliente = (clienteId) => {
+    const cliente = clientes?.find(c => c.id === parseInt(clienteId));
+    if (cliente) {
+      setLatitud(cliente.latitud?.toString() || '');
+      setLongitud(cliente.longitud?.toString() || '');
+      setDireccionServicio(cliente.direccion || '');
+    } else {
+      setLatitud('');
+      setLongitud('');
+      setDireccionServicio('');
+    }
+  };
+
+  const handleClienteChange = (e) => {
+    const id = e.target.value;
+    setClienteId(id);
+    setVehiculoId('');
+    cargarUbicacionCliente(id);
   };
 
   const handleSubmit = (e) => {
@@ -287,6 +318,9 @@ const OrdenesTrabajo = () => {
       observaciones: observaciones.trim() || null,
       total: parseFloat(calcularTotal()),
       template_id: templateIdFinal,
+      latitud: latitud ? parseFloat(latitud) : null,
+      longitud: longitud ? parseFloat(longitud) : null,
+      direccion_servicio: direccionServicio.trim() || null,
     };
 
     const serviciosPayload = serviciosSeleccionados.map(s => ({ id: s.id, precio: s.precio }));
@@ -310,6 +344,9 @@ const OrdenesTrabajo = () => {
     setKilometraje(orden.kilometraje?.toString() || '');
     setObservaciones(orden.observaciones || '');
     setTemplateId(orden.template_id?.toString() || '');
+    setLatitud(orden.latitud?.toString() || '');
+    setLongitud(orden.longitud?.toString() || '');
+    setDireccionServicio(orden.direccion_servicio || '');
 
     const serviciosCargados = orden.orden_servicios?.map(os => ({
       value: os.servicio_id,
@@ -337,12 +374,6 @@ const OrdenesTrabajo = () => {
     }
   };
 
-  const handleClienteChange = (e) => {
-    const id = e.target.value;
-    setClienteId(id);
-    setVehiculoId('');
-  };
-
   const formatDate = (date) => {
     if (!date) return '-';
     const d = new Date(date);
@@ -350,17 +381,15 @@ const OrdenesTrabajo = () => {
   };
 
   // --- LÓGICA DE FILTRADO ---
-  const ordenesFiltradas = useMemo(() => {
+  const ordenesFiltradas = React.useMemo(() => {
     if (!ordenes) return [];
 
     let filtradas = ordenes;
 
-    // 1. Filtrar por estado
     if (filtroEstado !== 'todos') {
       filtradas = filtradas.filter(o => o.estado === filtroEstado);
     }
 
-    // 2. Filtrar por fecha
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     const finDia = new Date(hoy);
@@ -393,7 +422,6 @@ const OrdenesTrabajo = () => {
       });
     }
 
-    // 3. Filtrar por mecánico
     if (filtroMecanico !== 'todos') {
       filtradas = filtradas.filter(o => o.mecanico_id === filtroMecanico);
     }
@@ -510,7 +538,7 @@ const OrdenesTrabajo = () => {
             {editandoId ? 'Editar Orden' : 'Nueva Orden de Trabajo'}
           </h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Campos básicos (igual que antes) */}
+            {/* Campos básicos */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
               <select
@@ -610,7 +638,63 @@ const OrdenesTrabajo = () => {
               />
             </div>
 
-            <div className="md:col-span-2">
+            {/* Ubicación geográfica */}
+            <div className="md:col-span-2 border-t pt-4 mt-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">📍 Ubicación del servicio</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Dirección (texto)</label>
+                  <input
+                    type="text"
+                    value={direccionServicio}
+                    onChange={(e) => setDireccionServicio(e.target.value)}
+                    placeholder="Dirección donde se realizará el servicio"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Latitud</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={latitud}
+                      onChange={(e) => setLatitud(e.target.value)}
+                      placeholder="Ej: 13.6919"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Longitud</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={longitud}
+                      onChange={(e) => setLongitud(e.target.value)}
+                      placeholder="Ej: -89.2182"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (clienteId) {
+                    cargarUbicacionCliente(clienteId);
+                    alert('Ubicación del cliente cargada');
+                  } else {
+                    alert('Primero selecciona un cliente');
+                  }
+                }}
+                className="mt-2 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-1 rounded text-sm"
+              >
+                📍 Usar ubicación del cliente
+              </button>
+            </div>
+
+            {/* Selector de plantilla (opcional) */}
+            <div className="md:col-span-2 border-t pt-4 mt-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Plantilla de checklist (opcional)</label>
               <select
                 value={templateId}
@@ -624,7 +708,8 @@ const OrdenesTrabajo = () => {
               </select>
             </div>
 
-            <div className="md:col-span-2 border-t pt-4 mt-2">
+            {/* Servicios y productos */}
+            <div className="md:col-span-2 border-t pt-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Servicios realizados</label>
               <Select
                 isMulti
@@ -642,7 +727,7 @@ const OrdenesTrabajo = () => {
             </div>
 
             <div className="md:col-span-2 border-t pt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Productos usados</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Productos usados (venta cruzada)</label>
               <Select
                 isMulti
                 options={productosOptions}
@@ -658,6 +743,7 @@ const OrdenesTrabajo = () => {
               />
             </div>
 
+            {/* Total */}
             <div className="md:col-span-2">
               <div className="bg-gray-50 p-3 rounded-lg">
                 <span className="font-semibold text-gray-700">Total: </span>
@@ -709,6 +795,9 @@ const OrdenesTrabajo = () => {
                   <div><strong>Fecha:</strong> {formatDate(o.fecha_hora)}</div>
                   <div><strong>Plantilla:</strong> {templates?.find(t => t.id === o.template_id)?.nombre || 'Sin plantilla'}</div>
                   <div><strong>Total:</strong> ${o.total}</div>
+                  {o.direccion_servicio && (
+                    <div className="text-xs text-gray-500 truncate">📍 {o.direccion_servicio}</div>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100">

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { useGeolocation } from '../hooks/useGeolocation';
 
 // --- FUNCIONES DE CONSULTA ---
 const fetchClientes = async () => {
@@ -67,6 +68,8 @@ const regenerarToken = async (id) => {
 // --- COMPONENTE ---
 const Clientes = () => {
   const queryClient = useQueryClient();
+  const { location, loading: locationLoading, error: locationError, refreshLocation } = useGeolocation();
+
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
 
@@ -76,6 +79,8 @@ const Clientes = () => {
   const [direccion, setDireccion] = useState('');
   const [tipo, setTipo] = useState('particular');
   const [dui, setDui] = useState('');
+  const [latitud, setLatitud] = useState('');
+  const [longitud, setLongitud] = useState('');
 
   const { data: clientes, isLoading, error } = useQuery({
     queryKey: ['clientes'],
@@ -127,6 +132,8 @@ const Clientes = () => {
     setDireccion('');
     setTipo('particular');
     setDui('');
+    setLatitud('');
+    setLongitud('');
     setEditandoId(null);
     setMostrarFormulario(false);
   };
@@ -144,6 +151,8 @@ const Clientes = () => {
       direccion: direccion || null,
       tipo,
       dui: dui || null,
+      latitud: latitud ? parseFloat(latitud) : null,
+      longitud: longitud ? parseFloat(longitud) : null,
     };
 
     if (editandoId) {
@@ -161,6 +170,8 @@ const Clientes = () => {
     setDireccion(cliente.direccion || '');
     setTipo(cliente.tipo || 'particular');
     setDui(cliente.dui || '');
+    setLatitud(cliente.latitud?.toString() || '');
+    setLongitud(cliente.longitud?.toString() || '');
     setMostrarFormulario(true);
   };
 
@@ -173,6 +184,19 @@ const Clientes = () => {
   const handleRegenerarToken = (id) => {
     if (window.confirm('¿Regenerar el enlace del portal? El enlace anterior dejará de funcionar.')) {
       regenerarTokenMutation.mutate(id);
+    }
+  };
+
+  const handleUsarUbicacion = () => {
+    if (location) {
+      setLatitud(location.lat.toString());
+      setLongitud(location.lng.toString());
+      alert('Ubicación capturada correctamente');
+    } else if (locationError) {
+      alert('⚠️ No se pudo capturar la ubicación automáticamente. Puedes ingresar las coordenadas manualmente.');
+    } else {
+      refreshLocation();
+      alert('Intentando capturar ubicación...');
     }
   };
 
@@ -206,6 +230,7 @@ const Clientes = () => {
             {editandoId ? 'Editar Cliente' : 'Nuevo Cliente'}
           </h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Campos básicos */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
               <input
@@ -263,6 +288,47 @@ const Clientes = () => {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
             </div>
+            
+            {/* Ubicación geográfica */}
+            <div className="md:col-span-2 border-t pt-4 mt-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Ubicación geográfica (para mapas)</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Latitud</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={latitud}
+                    onChange={(e) => setLatitud(e.target.value)}
+                    placeholder="Ej: 13.6919"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Longitud</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={longitud}
+                    onChange={(e) => setLongitud(e.target.value)}
+                    placeholder="Ej: -89.2182"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleUsarUbicacion}
+                className="mt-2 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-1 rounded text-sm"
+                disabled={locationLoading}
+              >
+                {locationLoading ? 'Obteniendo ubicación...' : '📍 Usar mi ubicación actual'}
+              </button>
+              {locationError && (
+                <p className="text-xs text-amber-600 mt-1">⚠️ No se pudo obtener la ubicación automáticamente. Puedes ingresar las coordenadas manualmente.</p>
+              )}
+            </div>
+
             <div className="md:col-span-2 flex justify-end">
               <button
                 type="submit"
@@ -280,31 +346,26 @@ const Clientes = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-md overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-              <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teléfono</th>
-              <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Correo</th>
-              <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enlace portal</th>
-              <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">Expira</th>
-              <th className="px-3 py-2 md:px-6 md:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {clientes?.length === 0 ? (
-              <tr>
-                <td colSpan="6" className="px-6 py-4 text-center text-gray-500">No hay clientes registrados</td>
-              </tr>
-            ) : (
-              clientes?.map((cliente) => (
-                <tr key={cliente.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap font-medium text-gray-900">{cliente.nombre}</td>
-                  <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-gray-600">{cliente.telefono || '-'}</td>
-                  <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-gray-600 hidden sm:table-cell">{cliente.email || '-'}</td>
-                  <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-blue-600 text-sm">
-                    {cliente.token_portal ? (
+      {/* Lista de tarjetas (en lugar de tabla) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {clientes?.length === 0 ? (
+          <div className="col-span-full text-center text-gray-500 py-8">No hay clientes registrados</div>
+        ) : (
+          clientes?.map((cliente) => (
+            <div key={cliente.id} className="bg-white rounded-xl shadow-md p-4 flex flex-col h-full">
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-gray-800 text-lg truncate">{cliente.nombre}</span>
+                  <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full text-gray-600">
+                    {cliente.tipo === 'empresa' ? 'Empresa' : 'Particular'}
+                  </span>
+                </div>
+                <div className="space-y-1 text-sm">
+                  <div><strong>Teléfono:</strong> {cliente.telefono || '-'}</div>
+                  <div><strong>Correo:</strong> {cliente.email || '-'}</div>
+                  <div><strong>DUI:</strong> {cliente.dui || '-'}</div>
+                  {cliente.token_portal && (
+                    <div className="mt-2">
                       <button
                         onClick={() => {
                           const url = `${portalBaseUrl}?token=${cliente.token_portal}`;
@@ -313,44 +374,40 @@ const Clientes = () => {
                         }}
                         className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded text-xs whitespace-nowrap"
                       >
-                        📋 Copiar enlace
+                        📋 Copiar enlace portal
                       </button>
-                    ) : (
-                      <span className="text-gray-400">Sin enlace</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-gray-600 hidden xl:table-cell">
-                    {cliente.token_expiracion ? (
-                      new Date(cliente.token_expiracion).toLocaleDateString('es-SV')
-                    ) : '-'}
-                  </td>
-                  <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => handleEditar(cliente)}
-                      className="text-blue-600 hover:text-blue-900 mr-2"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleEliminar(cliente.id, cliente.nombre)}
-                      className="text-red-600 hover:text-red-900 mr-2"
-                    >
-                      Eliminar
-                    </button>
-                    {cliente.token_portal && (
-                      <button
-                        onClick={() => handleRegenerarToken(cliente.id)}
-                        className="text-amber-600 hover:text-amber-900"
-                      >
-                        Regenerar enlace
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                      <span className="text-xs text-gray-400 ml-2">
+                        Expira: {cliente.token_expiracion ? new Date(cliente.token_expiracion).toLocaleDateString('es-SV') : '-'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-gray-100">
+                <button
+                  onClick={() => handleEditar(cliente)}
+                  className="flex-1 bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-sm hover:bg-blue-200 transition text-center"
+                >
+                  Editar
+                </button>
+                <button
+                  onClick={() => handleEliminar(cliente.id, cliente.nombre)}
+                  className="flex-1 bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-sm hover:bg-red-200 transition text-center"
+                >
+                  Eliminar
+                </button>
+                {cliente.token_portal && (
+                  <button
+                    onClick={() => handleRegenerarToken(cliente.id)}
+                    className="flex-1 bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-sm hover:bg-amber-200 transition text-center"
+                  >
+                    Regenerar enlace
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
