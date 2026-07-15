@@ -130,7 +130,7 @@ const Empleados = () => {
     }, 3000);
   };
 
-  // Mutaciones...
+  // Mutaciones
   const crearMutation = useMutation({
     mutationFn: crearEmpleado,
     onSuccess: () => {
@@ -264,6 +264,7 @@ const Empleados = () => {
     }
   };
 
+  // 🔽 FUNCIÓN handleEditar CORREGIDA: carga TODOS los campos
   const handleEditar = (empleado) => {
     setEditandoId(empleado.id);
     setNombre(empleado.nombre);
@@ -278,9 +279,10 @@ const Empleados = () => {
     setTipoCuenta(empleado.tipo_cuenta || '');
     setNumeroCuenta(empleado.numero_cuenta || '');
     setDireccionResidencia(empleado.direccion_residencia || '');
-    setImagenDui(empleado.imagen_dui || '');
+    setImagenDui(empleado.imagen_dui || ''); // 🔁 Esto carga la URL de la imagen
     setMostrarFormulario(true);
 
+    // Desplazar y enfocar el formulario
     setTimeout(() => {
       if (formRef.current) {
         formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -357,22 +359,171 @@ const Empleados = () => {
             {editandoId ? 'Editar Empleado' : 'Nuevo Empleado'}
           </h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* ... (el formulario es el mismo de antes, no lo repito para no alargar) ... */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-              <input ref={nombreInputRef} type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" required />
+              <input
+                ref={nombreInputRef}
+                type="text"
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                required
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
-              <select value={rol} onChange={(e) => setRol(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+              <select
+                value={rol}
+                onChange={(e) => setRol(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              >
                 <option value="mecanico">Mecánico</option>
                 <option value="admin">Administrador</option>
               </select>
             </div>
-            {/* ... resto de campos ... */}
+            {!editandoId ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña *</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    required
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email (no editable)</label>
+                  <input
+                    type="email"
+                    value={email}
+                    disabled
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100 text-gray-500 cursor-not-allowed"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Para cambiar el email, usa el panel de Supabase.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                  <select
+                    value={activo ? 'true' : 'false'}
+                    onChange={(e) => setActivo(e.target.value === 'true')}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="true">Activo</option>
+                    <option value="false">Inactivo</option>
+                  </select>
+                </div>
+              </>
+            )}
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">DUI</label>
+              <input
+                type="text"
+                value={dui}
+                onChange={(e) => setDui(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono móvil</label>
+              <input
+                type="text"
+                value={telefonoMovil}
+                onChange={(e) => setTelefonoMovil(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Correo personal</label>
+              <input
+                type="email"
+                value={correoPersonal}
+                onChange={(e) => setCorreoPersonal(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Banco</label>
+              <input
+                type="text"
+                value={banco}
+                onChange={(e) => setBanco(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de cuenta</label>
+              <input
+                type="text"
+                value={tipoCuenta}
+                onChange={(e) => setTipoCuenta(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Número de cuenta</label>
+              <input
+                type="text"
+                value={numeroCuenta}
+                onChange={(e) => setNumeroCuenta(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Dirección de residencia</label>
+              <input
+                type="text"
+                value={direccionResidencia}
+                onChange={(e) => setDireccionResidencia(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Imagen del DUI</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file) handleUploadDui(file);
+                }}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+              {imagenDui && (
+                <div className="mt-2 flex items-center gap-3">
+                  <a href={imagenDui} target="_blank" rel="noreferrer" className="text-blue-500 text-sm underline">
+                    Ver imagen actual
+                  </a>
+                  <span className="text-xs text-gray-500">({uploading ? 'Subiendo...' : 'Listo'})</span>
+                </div>
+              )}
+            </div>
             <div className="md:col-span-2 flex justify-end">
-              <button type="submit" disabled={crearMutation.isPending || actualizarMutation.isPending} className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg disabled:opacity-50 w-full md:w-auto">
-                {crearMutation.isPending || actualizarMutation.isPending ? 'Guardando...' : editandoId ? 'Actualizar Empleado' : 'Guardar Empleado'}
+              <button
+                type="submit"
+                disabled={crearMutation.isPending || actualizarMutation.isPending}
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg disabled:opacity-50 w-full md:w-auto"
+              >
+                {crearMutation.isPending || actualizarMutation.isPending
+                  ? 'Guardando...'
+                  : editandoId
+                  ? 'Actualizar Empleado'
+                  : 'Guardar Empleado'}
               </button>
             </div>
           </form>
@@ -389,7 +540,9 @@ const Empleados = () => {
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-semibold text-gray-800 text-lg truncate">{e.nombre}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${e.rol === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    e.rol === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                  }`}>
                     {e.rol === 'admin' ? 'Admin' : 'Mecánico'}
                   </span>
                 </div>
@@ -401,31 +554,41 @@ const Empleados = () => {
                   <div><strong>Cuenta:</strong> {e.numero_cuenta || '-'}</div>
                   <div><strong>Dirección:</strong> {e.direccion_residencia || '-'}</div>
                   <div><strong>Estado:</strong> {e.activo ? '✅ Activo' : '❌ Inactivo'}</div>
-                </div>
-                {/* 🖼️ IMAGEN DEL DUI FUERA DEL space-y-1 */}
-                {e.imagen_dui && (
-                  <div className="mt-2 w-full flex justify-start items-start">
-                    <div>
-                      <span className="text-sm font-medium text-gray-700">DUI (imagen):</span>
+                  {e.imagen_dui && (
+                    <div className="mt-2">
+                      <span className="text-sm font-medium text-gray-700 block">DUI (imagen):</span>
                       <div className="mt-1">
-                        <a href={e.imagen_dui} target="_blank" rel="noreferrer" className="block">
-                          <img src={e.imagen_dui} alt="DUI" className="w-24 h-24 object-cover rounded border border-gray-200 hover:opacity-80 transition" />
+                        <a href={e.imagen_dui} target="_blank" rel="noreferrer">
+                          <img
+                            src={e.imagen_dui}
+                            alt="DUI"
+                            className="w-24 h-24 object-cover rounded border border-gray-200 hover:opacity-80 transition"
+                          />
                         </a>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
               <div className="flex gap-2 mt-4 pt-3 border-t border-gray-100 flex-wrap">
-                <button onClick={() => handleEditar(e)} className="flex-1 bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-sm hover:bg-blue-200 transition text-center">
+                <button
+                  onClick={() => handleEditar(e)}
+                  className="flex-1 bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-sm hover:bg-blue-200 transition text-center"
+                >
                   Editar
                 </button>
                 {e.activo ? (
-                  <button onClick={() => handleDesactivar(e.id, e.nombre)} className="flex-1 bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-sm hover:bg-red-200 transition text-center">
+                  <button
+                    onClick={() => handleDesactivar(e.id, e.nombre)}
+                    className="flex-1 bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-sm hover:bg-red-200 transition text-center"
+                  >
                     Desactivar
                   </button>
                 ) : (
-                  <button onClick={() => handleReactivar(e.id)} className="flex-1 bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-sm hover:bg-green-200 transition text-center">
+                  <button
+                    onClick={() => handleReactivar(e.id)}
+                    className="flex-1 bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-sm hover:bg-green-200 transition text-center"
+                  >
                     Reactivar
                   </button>
                 )}
