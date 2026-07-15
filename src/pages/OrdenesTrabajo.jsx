@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import Select from 'react-select';
-import { useGeolocation } from '../hooks/useGeolocation';
-import { generarEnlacesMapa } from '../utils/ubicacion';
+import { enviarNuevaOrdenMecanico, enviarCierreServicio } from '../utils/whatsapp.js';
 
 // --- FUNCIONES DE CONSULTA ---
 const fetchOrdenes = async () => {
@@ -13,7 +12,7 @@ const fetchOrdenes = async () => {
       *,
       clientes (nombre, telefono, latitud, longitud),
       vehiculos (marca, modelo, placa),
-      mecanico:perfiles!ordenes_trabajo_mecanico_id_fkey (nombre),
+      mecanico:perfiles!ordenes_trabajo_mecanico_id_fkey (nombre, telefono),
       orden_servicios (servicio_id, precio_aplicado, servicios (nombre, precio_base)),
       orden_productos (producto_id, cantidad, precio_aplicado, inventario (nombre_producto, precio_venta))
     `)
@@ -25,7 +24,7 @@ const fetchOrdenes = async () => {
 const fetchClientes = async () => {
   const { data, error } = await supabase
     .from('clientes')
-    .select('id, nombre, latitud, longitud, direccion')
+    .select('id, nombre, telefono, latitud, longitud, direccion')
     .order('nombre');
   if (error) throw new Error(error.message);
   return data;
@@ -44,7 +43,7 @@ const fetchVehiculosByCliente = async (clienteId) => {
 const fetchMecanicos = async () => {
   const { data, error } = await supabase
     .from('perfiles')
-    .select('id, nombre')
+    .select('id, nombre, telefono')
     .eq('rol', 'mecanico');
   if (error) throw new Error(error.message);
   return data;
@@ -222,21 +221,107 @@ const OrdenesTrabajo = () => {
   // --- Mutaciones ---
   const crearMutation = useMutation({
     mutationFn: crearOrden,
-    onSuccess: () => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['ordenes'] });
       queryClient.invalidateQueries({ queryKey: ['ordenesCount'] });
+      
+      // --- SIMULACIÓN DE WHATSAPP: NOTIFICAR AL MECÁNICO ---
+      try {
+        // Obtener el mecánico asignado
+        const { data: mecanicoData } = await supabase
+          .from('perfiles')
+          .select('id, nombre, telefono')
+          .eq('id', data.mecanico_id)
+          .single();
+        
+        if (mecanicoData) {
+          // Obtener el cliente
+          const { data: clienteData } = await supabase
+            .from('clientes')
+            .select('nombre')
+            .eq('id', data.cliente_id)
+            .single();
+          
+          // Obtener el vehículo
+          const { data: vehiculoData } = await supabase
+            .from('vehiculos')
+            .select('marca, modelo')
+            .eq('id', data.vehiculo_id)
+            .single();
+          
+          const clienteNombre = clienteData?.nombre || 'Cliente';
+          const vehiculoNombre = vehiculoData ? `${vehiculoData.marca} ${vehiculoData.modelo}` : 'Vehículo';
+          
+          // Crear objeto orden con los datos necesarios
+          const ordenConUbicacion = {
+            ...data,
+            vehiculos: { marca: vehiculoData?.marca || '', modelo: vehiculoData?.modelo || '' },
+            latitud: data.latitud,
+            longitud: data.longitud,
+            direccion_servicio: data.direccion_servicio,
+          };
+          
+          await enviarNuevaOrdenMecanico(
+            { nombre: mecanicoData.nombre || 'Mecánico', telefono: mecanicoData.telefono || '50370123456' },
+            { nombre: clienteNombre },
+            ordenConUbicacion
+          );
+        } else {
+          // Si no se encuentra el mecánico, usar uno de prueba
+          await enviarNuevaOrdenMecanico(
+            { nombre: 'Mecánico', telefono: '50370123456' },
+            { nombre: 'Cliente Prueba' },
+            { ...data, vehiculos: { marca: '', modelo: '' } }
+          );
+        }
+      } catch (err) {
+        console.error('Error al notificar al mecánico:', err);
+        // No bloqueamos la creación de la orden si falla la notificación
+      }
+      
       resetFormulario();
-      alert('Orden creada exitosamente');
     },
     onError: (error) => alert('Error: ' + error.message),
   });
 
   const actualizarMutation = useMutation({
     mutationFn: actualizarOrden,
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['ordenes'] });
+      
+      // Verificar si el estado cambió a "facturado"
+      const estadoAnterior = variables.orden.estado;
+      if (estadoAnterior === 'facturado') {
+        // --- SIMULACIÓN DE WHATSAPP: NOTIFICAR AL CLIENTE ---
+        // Necesitamos la orden actualizada, así que la buscamos de nuevo
+        const ordenActualizada = variables.orden;
+        (async () => {
+          try {
+            // Obtener el cliente
+            const { data: clienteData } = await supabase
+              .from('clientes')
+              .select('id, nombre, telefono')
+              .eq('id', ordenActualizada.cliente_id)
+              .single();
+            
+            if (clienteData) {
+              await enviarCierreServicio(
+                { nombre: clienteData.nombre, telefono: clienteData.telefono || '50370123456' },
+                { id: variables.id, total: ordenActualizada.total }
+              );
+            } else {
+              await enviarCierreServicio(
+                { nombre: 'Cliente', telefono: '50370123456' },
+                { id: variables.id, total: 0 }
+              );
+            }
+          } catch (err) {
+            console.error('Error al notificar al cliente:', err);
+          }
+        })();
+      }
+      
       resetFormulario();
-      alert('Orden actualizada');
     },
     onError: (error) => alert('Error: ' + error.message),
   });

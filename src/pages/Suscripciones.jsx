@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
+import { enviarMensaje } from '../utils/whatsapp';
+import { formatearMensaje } from '../constants/mensajes';
 
 // --- FUNCIONES DE CONSULTA ---
 const fetchSuscripciones = async () => {
@@ -8,7 +10,7 @@ const fetchSuscripciones = async () => {
     .from('suscripciones')
     .select(`
       *,
-      clientes (nombre),
+      clientes (nombre, telefono),
       vehiculos (marca, modelo, placa)
     `)
     .order('fecha_proximo_pago', { ascending: true });
@@ -19,7 +21,7 @@ const fetchSuscripciones = async () => {
 const fetchClientes = async () => {
   const { data, error } = await supabase
     .from('clientes')
-    .select('id, nombre')
+    .select('id, nombre, telefono')
     .order('nombre');
   if (error) throw new Error(error.message);
   return data;
@@ -111,11 +113,38 @@ const Suscripciones = () => {
   // Mutaciones
   const crearMutation = useMutation({
     mutationFn: crearSuscripcion,
-    onSuccess: () => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['suscripciones'] });
       queryClient.invalidateQueries({ queryKey: ['suscripcionesCount'] });
+
+      // --- SIMULACIÓN DE WHATSAPP: NOTIFICAR AL CLIENTE ---
+      try {
+        // Obtener el cliente
+        const { data: clienteData } = await supabase
+          .from('clientes')
+          .select('nombre, telefono')
+          .eq('id', data.cliente_id)
+          .single();
+        
+        if (clienteData) {
+          const mensajeTemplate = `¡Felicidades [cliente]! Ya formas parte de nuestro plan de mantenimiento. Tu primera visita preventiva está programada para [fecha]. Puedes ver todos los beneficios en tu portal: [enlace_portal].`;
+          const enlacePortal = `${window.location.origin}/portal?token=${clienteData.token_portal}`;
+          const mensaje = formatearMensaje(mensajeTemplate, {
+            cliente: clienteData.nombre,
+            fecha: new Date(data.fecha_inicio).toLocaleDateString('es-SV'),
+            enlace_portal: enlacePortal || '#',
+          });
+          await enviarMensaje(clienteData.telefono || '50370123456', mensaje);
+        } else {
+          // Cliente de prueba
+          await enviarMensaje('50370123456', 'Suscripción creada para Cliente Prueba');
+        }
+      } catch (err) {
+        console.error('Error al notificar al cliente:', err);
+        // No bloqueamos la creación si falla la notificación
+      }
+
       resetFormulario();
-      alert('Suscripción creada');
     },
     onError: (error) => alert('Error: ' + error.message),
   });
@@ -208,7 +237,6 @@ const Suscripciones = () => {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
 
-    // Calcular estado de vencimiento para cada una
     const conEstado = suscripciones.map(s => {
       const fechaPago = new Date(s.fecha_proximo_pago);
       fechaPago.setHours(0, 0, 0, 0);
@@ -224,7 +252,6 @@ const Suscripciones = () => {
       return { ...s, estadoVencimiento, diffDays };
     });
 
-    // Filtrar por estado de vencimiento
     let filtradas = conEstado;
     if (filtroVencimiento === 'activas') {
       filtradas = filtradas.filter(s => s.activo === true && s.estadoVencimiento === 'al_dia');
@@ -237,7 +264,6 @@ const Suscripciones = () => {
     } else if (filtroVencimiento === 'inactivas') {
       filtradas = filtradas.filter(s => s.activo === false);
     }
-    // 'todas' -> no filtra adicionalmente
 
     return filtradas;
   }, [suscripciones, filtroVencimiento]);

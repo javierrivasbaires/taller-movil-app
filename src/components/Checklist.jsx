@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useQuery } from '@tanstack/react-query';
+import { enviarChecklistCompletadoAdmin } from '../utils/whatsapp.js';
 
 // --- FUNCIÓN PARA OBTENER LOS ÍTEMS DE UNA PLANTILLA ---
 const fetchItemsForTemplate = async (templateId) => {
@@ -190,7 +191,39 @@ const Checklist = ({ ordenId, orden, checklistExistente, onClose, onComplete }) 
         .eq('id', ordenId);
       if (error) throw new Error('Error al completar orden: ' + error.message);
       
-      alert('Checklist completado y guardado');
+      // --- SIMULACIÓN DE WHATSAPP: NOTIFICAR AL ADMIN ---
+      // Obtener el admin desde la tabla perfiles
+      const { data: adminData } = await supabase
+        .from('perfiles')
+        .select('id, nombre, telefono')
+        .eq('rol', 'admin')
+        .limit(1);
+      
+      if (adminData && adminData.length > 0) {
+        const admin = adminData[0];
+        // Obtener el cliente desde la orden
+        const { data: clienteData } = await supabase
+          .from('clientes')
+          .select('nombre')
+          .eq('id', orden.cliente_id)
+          .single();
+        const cliente = clienteData || { nombre: 'Cliente' };
+        
+        // Llamar a la función de notificación
+        await enviarChecklistCompletadoAdmin(
+          { nombre: admin.nombre || 'Administrador', telefono: admin.telefono || '50370123456' },
+          cliente,
+          orden
+        );
+      } else {
+        // Si no se encuentra admin, usar uno de prueba
+        await enviarChecklistCompletadoAdmin(
+          { nombre: 'Administrador', telefono: '50370123456' },
+          { nombre: 'Cliente Prueba' },
+          orden
+        );
+      }
+      
       onComplete();
     } catch (err) {
       alert('Error al completar: ' + err.message);
