@@ -70,6 +70,9 @@ const Clientes = () => {
   const queryClient = useQueryClient();
   const { location, loading: locationLoading, error: locationError, refreshLocation } = useGeolocation();
 
+  // Estado para toast
+  const [toast, setToast] = useState({ message: '', type: '', visible: false });
+
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [editandoId, setEditandoId] = useState(null);
 
@@ -83,6 +86,14 @@ const Clientes = () => {
   const [latitud, setLatitud] = useState('');
   const [longitud, setLongitud] = useState('');
 
+  // Función para mostrar toast
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type, visible: true });
+    setTimeout(() => {
+      setToast({ message: '', type: '', visible: false });
+    }, 3000);
+  };
+
   const { data: clientes, isLoading, error } = useQuery({
     queryKey: ['clientes'],
     queryFn: fetchClientes,
@@ -93,9 +104,11 @@ const Clientes = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
       resetFormulario();
-      alert('Cliente creado con enlace de portal generado');
+      showToast('Cliente creado con enlace de portal generado', 'success');
     },
-    onError: (error) => alert('Error: ' + error.message),
+    onError: (error) => {
+      showToast('Error al crear cliente: ' + error.message, 'error');
+    },
   });
 
   const actualizarMutation = useMutation({
@@ -103,27 +116,33 @@ const Clientes = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
       resetFormulario();
-      alert('Cliente actualizado');
+      showToast('Cliente actualizado correctamente', 'success');
     },
-    onError: (error) => alert('Error: ' + error.message),
+    onError: (error) => {
+      showToast('Error al actualizar cliente: ' + error.message, 'error');
+    },
   });
 
   const eliminarMutation = useMutation({
     mutationFn: eliminarCliente,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
-      alert('Cliente eliminado');
+      showToast('Cliente eliminado', 'success');
     },
-    onError: (error) => alert('Error: ' + error.message),
+    onError: (error) => {
+      showToast('Error al eliminar cliente: ' + error.message, 'error');
+    },
   });
 
   const regenerarTokenMutation = useMutation({
     mutationFn: regenerarToken,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
-      alert('Token regenerado y enlace actualizado');
+      showToast('Token regenerado y enlace actualizado', 'success');
     },
-    onError: (error) => alert('Error: ' + error.message),
+    onError: (error) => {
+      showToast('Error al regenerar token: ' + error.message, 'error');
+    },
   });
 
   const resetFormulario = () => {
@@ -143,7 +162,7 @@ const Clientes = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!nombre.trim()) {
-      alert('El nombre es obligatorio');
+      showToast('El nombre es obligatorio', 'error');
       return;
     }
     const datos = {
@@ -195,12 +214,12 @@ const Clientes = () => {
     if (location) {
       setLatitud(location.lat.toString());
       setLongitud(location.lng.toString());
-      alert('Ubicación capturada correctamente');
+      showToast('Ubicación capturada correctamente', 'success');
     } else if (locationError) {
-      alert('Error al capturar ubicación: ' + locationError);
+      showToast('Error al capturar ubicación: ' + locationError, 'error');
     } else {
       refreshLocation();
-      alert('Intentando capturar ubicación...');
+      showToast('Intentando capturar ubicación...', 'success');
     }
   };
 
@@ -209,8 +228,21 @@ const Clientes = () => {
 
   const portalBaseUrl = window.location.origin + '/portal';
 
+  // Estilos para el toast
+  const toastStyles = {
+    success: 'bg-green-100 border-green-500 text-green-700',
+    error: 'bg-red-100 border-red-500 text-red-700',
+  };
+
   return (
     <div className="p-4 max-w-7xl mx-auto">
+      {/* Toast (notificación temporal) */}
+      {toast.visible && (
+        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg border-l-4 shadow-lg max-w-md ${toastStyles[toast.type]}`}>
+          <p>{toast.message}</p>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <h2 className="text-2xl font-bold text-gray-800">Clientes</h2>
         <button
@@ -301,7 +333,6 @@ const Clientes = () => {
                 <option value="masculino">Masculino</option>
                 <option value="femenino">Femenino</option>
                 <option value="empresa">Empresa</option>
-                <option value="otro">Otro</option>
               </select>
             </div>
             
@@ -362,78 +393,65 @@ const Clientes = () => {
         </div>
       )}
 
-      {/* Tabla de clientes */}
-      <div className="bg-white rounded-xl shadow-md overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-              <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teléfono</th>
-              <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Correo</th>
-              <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enlace portal</th>
-              <th className="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">Expira</th>
-              <th className="px-3 py-2 md:px-6 md:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {clientes?.length === 0 ? (
-              <tr>
-                <td colSpan="6" className="px-6 py-4 text-center text-gray-500">No hay clientes registrados</td>
-              </tr>
-            ) : (
-              clientes?.map((cliente) => (
-                <tr key={cliente.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap font-medium text-gray-900">{cliente.nombre}</td>
-                  <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-gray-600">{cliente.telefono || '-'}</td>
-                  <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-gray-600 hidden sm:table-cell">{cliente.email || '-'}</td>
-                  <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-blue-600 text-sm">
-                    {cliente.token_portal ? (
-                      <button
-                        onClick={() => {
-                          const url = `${portalBaseUrl}?token=${cliente.token_portal}`;
-                          navigator.clipboard?.writeText(url);
-                          alert('Enlace copiado al portapapeles');
-                        }}
-                        className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded text-xs whitespace-nowrap"
-                      >
-                        📋 Copiar enlace
-                      </button>
-                    ) : (
-                      <span className="text-gray-400">Sin enlace</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm text-gray-600 hidden xl:table-cell">
-                    {cliente.token_expiracion ? (
-                      new Date(cliente.token_expiracion).toLocaleDateString('es-SV')
-                    ) : '-'}
-                  </td>
-                  <td className="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => handleEditar(cliente)}
-                      className="text-blue-600 hover:text-blue-900 mr-2"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleEliminar(cliente.id, cliente.nombre)}
-                      className="text-red-600 hover:text-red-900 mr-2"
-                    >
-                      Eliminar
-                    </button>
-                    {cliente.token_portal && (
-                      <button
-                        onClick={() => handleRegenerarToken(cliente.id)}
-                        className="text-amber-600 hover:text-amber-900"
-                      >
-                        Regenerar enlace
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      {/* Lista de clientes en tarjetas (grid responsivo) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {clientes?.length === 0 ? (
+          <div className="col-span-full text-center text-gray-500 py-8">No hay clientes registrados</div>
+        ) : (
+          clientes?.map((cliente) => (
+            <div key={cliente.id} className="bg-white rounded-xl shadow-md p-4 flex flex-col h-full">
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-gray-800 text-lg truncate">{cliente.nombre}</span>
+                  <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full text-gray-600 whitespace-nowrap ml-2">
+                    {cliente.tipo === 'empresa' ? 'Empresa' : 'Particular'}
+                  </span>
+                </div>
+                <div className="space-y-1 text-sm">
+                  <div><strong>Teléfono:</strong> {cliente.telefono || '-'}</div>
+                  <div><strong>Correo:</strong> {cliente.email || '-'}</div>
+                  <div><strong>Dirección:</strong> {cliente.direccion || '-'}</div>
+                  <div><strong>DUI:</strong> {cliente.dui || '-'}</div>
+                  <div><strong>Género:</strong> {cliente.genero || '-'}</div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-gray-100">
+                <button
+                  onClick={() => handleEditar(cliente)}
+                  className="flex-1 bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-sm hover:bg-blue-200 transition text-center"
+                >
+                  Editar
+                </button>
+                <button
+                  onClick={() => handleEliminar(cliente.id, cliente.nombre)}
+                  className="flex-1 bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-sm hover:bg-red-200 transition text-center"
+                >
+                  Eliminar
+                </button>
+                {cliente.token_portal && (
+                  <button
+                    onClick={() => {
+                      const url = `${portalBaseUrl}?token=${cliente.token_portal}`;
+                      navigator.clipboard?.writeText(url);
+                      showToast('Enlace copiado al portapapeles', 'success');
+                    }}
+                    className="w-full mt-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-xs transition text-center"
+                  >
+                    📋 Copiar enlace portal
+                  </button>
+                )}
+                {cliente.token_portal && (
+                  <button
+                    onClick={() => handleRegenerarToken(cliente.id)}
+                    className="w-full mt-1 bg-amber-100 hover:bg-amber-200 text-amber-700 px-3 py-1 rounded-lg text-xs transition text-center"
+                  >
+                    🔄 Regenerar enlace
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

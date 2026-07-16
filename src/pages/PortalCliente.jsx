@@ -180,7 +180,7 @@ const PortalCliente = () => {
         cliente_id: cliente.id,
         vehiculo_id: vehiculoSeleccionado || null,
         fecha_hora: fechaHora,
-        direccion: direccionTexto,
+        direccion: direccionTexto, // Asegúrate de que la columna en `citas` se llame `direccion`
         estado: 'pendiente',
         observaciones: mensajeCita || null,
         latitud: latitud,
